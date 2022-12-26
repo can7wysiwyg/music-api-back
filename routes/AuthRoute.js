@@ -10,9 +10,6 @@ AuthRoute.post(
   "/auth/register",
   
   asyncHandler(async (req, res) => {
-  
-
-  
 
   let { email, password } = req.body;
 
@@ -30,18 +27,6 @@ AuthRoute.post(
     password: hashedPassword,
     
   });
-
-   const accesstoken = createAccessToken({id: User._id})
-    const refreshtoken = createRefreshToken({id: User._id})
-
-
-    res.cookie('refreshtoken', refreshtoken, {
-      httpOnly: true,
-      path: '/auth/refresh_token',
-      maxAge: 7*24*60*60*1000 // 7d
-    })
-
-
 
     res.json({msg: "account created"});
   })
@@ -65,25 +50,24 @@ AuthRoute.post(
 
     if (passwordMatch) {
 
-      const accesstoken = createAccessToken({id: userExists._id})
-      const refreshtoken = createRefreshToken({id: userExists._id})
+      
+      
+      let accesstoken = createAccessToken({id: userExists._id })
+      let refreshtoken = createRefreshToken({id: userExists._id})
 
-            
+      res.cookie('refreshtoken', refreshtoken, { expire: new Date() + 9999 });
+
+      jwt.verify(refreshtoken, process.env.REFRESH_TOKEN, (err, user) =>{
+        if(err) return res.status(400).json({msg: "Please Login or Register"})
+    
+        const accesstoken = createAccessToken({id: user.id})
+        
+    
+        res.json({accesstoken}) })
 
 
-        res.cookie('refreshtoken', refreshtoken, {
-        httpOnly: true,
-        path: '/auth/refresh_token',
-        maxAge: 7*24*60*60*1000 // 7d
-      })
-  
 
 
-
-
-      const { _id, email } = userExists
-
-      res.json({ accesstoken, userExists: { _id, email } });
     } else {
       res.json({ msg: "check your password again" });
     }
@@ -94,34 +78,13 @@ AuthRoute.post(
 
 );
 
-AuthRoute.get('/auth/refresh_token', asyncHandler(async(req, res) => {
-  try{
-  const rf_token = req.cookies.refreshtoken;
-// console.log(rf_token);
-
-  if(!rf_token) return res.status(400).json({msg: "Please Login or Register"})
-
-  jwt.verify(rf_token, process.env.REFRESH_TOKEN, (err, user) =>{
-    if(err) return res.status(400).json({msg: "Please Login or Register"})
-
-    const accesstoken = createAccessToken({id: user.id})
-    
-
-    res.json({accesstoken})
-}) }
-catch(err) {
-  return res.status(500).json({msg: err.message})
-
-}
-
-}))
 
 
 AuthRoute.get(
   "/auth/logout",
   verify,
   asyncHandler(async (req, res) => {
-    res.clearCookie('refreshtoken', {path: '/auth/refresh_token'})
+    res.clearCookie('refreshtoken', {path: "/auth"})
             return res.json({msg: "Logged out"})
 
     
@@ -130,6 +93,7 @@ AuthRoute.get(
 
 
 AuthRoute.get('/auth/user',verify, asyncHandler(async(req, res) => {
+  
 try{
   const user = await User.findById(req.user).select('-password')
   if(!user) return res.status(400).json({msg: "User does not exist."})
